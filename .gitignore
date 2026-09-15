@@ -1,0 +1,25 @@
+# Binaries and object files
+*.exe
+*.o
+*.obj
+*.out
+*.dll
+*.so
+*.dylib
+
+# Runtime and backup data files
+items.dat
+items.dat.bak
+*.dat
+*.bak
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
