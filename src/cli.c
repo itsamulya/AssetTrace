@@ -180,6 +180,7 @@ void handleSearchLostItem(
     readTextSafe("Color: ", lostItem.color, sizeof(lostItem.color));
     readTextSafe("Location: ", lostItem.location, sizeof(lostItem.location));
     readTextSafe("Description: ", lostItem.description, sizeof(lostItem.description));
+    readTextSafe("Time lost (HH:MM): ", lostItem.time, sizeof(lostItem.time));
 
     /*
         Hash-based candidate retrieval.

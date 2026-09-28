@@ -36,6 +36,29 @@ int calculateLocationScore(
 );
 
 /*
+    Parse a time string (e.g. "14:00", "2:00 PM", "10:30") into minutes from midnight (0 to 1439).
+    Returns -1 for invalid or unparseable time format.
+*/
+int parseTimeToMinutes(
+    const char *timeStr
+);
+
+/*
+    Calculate temporal plausibility score (0 to 5) between lost and found report times:
+    - Found before lost time -> 0
+    - Difference 0–30 minutes -> 5
+    - Difference 31–60 minutes -> 4
+    - Difference 61–120 minutes -> 3
+    - Difference 121–240 minutes -> 2
+    - Difference > 240 minutes -> 1
+    - Invalid or missing time -> 0
+*/
+int calculateTimeScore(
+    const char *lostTime,
+    const char *foundTime
+);
+
+/*
     Calculate final combined match score (0 to 100).
 */
 int calculateTotalMatchScore(

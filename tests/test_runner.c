@@ -270,6 +270,7 @@ void test_matching_engine(void) {
     strcpy(query.color, "Black");
     strcpy(query.location, "Library");
     strcpy(query.description, "Black Boat Earbuds");
+    strcpy(query.time, "10:00 AM");
     strcpy(query.status, "Lost");
 
     /* Candidate deduplication test */
@@ -293,11 +294,17 @@ void test_matching_engine(void) {
     int locScore102 = calculateLocationScore(&campus, query.location, items[1].location);
     TEST_ASSERT(locScore102 == 6, "Item 102 connected-location score (Library->Canteen, dist 6) is 6");
 
+    /* Time scores */
+    int timeScore101 = calculateTimeScore(query.time, items[0].time);
+    TEST_ASSERT(timeScore101 == 5, "Item 101 same-time score (10:00 AM -> 10:00 AM, diff 0) is 5");
+    int timeScore102 = calculateTimeScore(query.time, items[1].time);
+    TEST_ASSERT(timeScore102 == 4, "Item 102 time score (10:00 AM -> 11:00 AM, diff 60m) is 4");
+
     /* Total score */
     int total101 = calculateTotalMatchScore(query, items[0], &campus);
     TEST_ASSERT(total101 == 100, "Item 101 total score is capped at 100%");
     int total102 = calculateTotalMatchScore(query, items[1], &campus);
-    TEST_ASSERT(total102 == 42, "Item 102 total score is 42% ((45*80 + 0*20)/100 + 6)");
+    TEST_ASSERT(total102 == 46, "Item 102 total score is 46% ((45*80 + 0*20)/100 + 6 + 4)");
 
     /* Ranking test */
     MaxHeap heap;
@@ -306,7 +313,7 @@ void test_matching_engine(void) {
     MatchResult first = extractMax(&heap);
     TEST_ASSERT(first.itemId == 101 && first.score == 100, "Top ranked candidate is Item 101 (100%)");
     MatchResult second = extractMax(&heap);
-    TEST_ASSERT(second.itemId == 102 && second.score == 42, "Second ranked candidate is Item 102 (42%)");
+    TEST_ASSERT(second.itemId == 102 && second.score == 46, "Second ranked candidate is Item 102 (46%)");
 
     freeHashTable(&ht);
 }
@@ -394,6 +401,51 @@ void test_edge_cases(void) {
     freeHashTable(&ht);
 }
 
+/*
+    Test 10: Time Parsing & Temporal Plausibility Scoring
+*/
+void test_time_plausibility(void) {
+    printf("\n--- Running Test 10: Time Parsing & Temporal Plausibility Scoring ---\n");
+
+    /* 1. Time parsing unit tests */
+    TEST_ASSERT(parseTimeToMinutes("14:00") == 840, "parseTimeToMinutes('14:00') is 840");
+    TEST_ASSERT(parseTimeToMinutes("00:00") == 0, "parseTimeToMinutes('00:00') is 0");
+    TEST_ASSERT(parseTimeToMinutes("23:59") == 1439, "parseTimeToMinutes('23:59') is 1439");
+    TEST_ASSERT(parseTimeToMinutes("10:00 AM") == 600, "parseTimeToMinutes('10:00 AM') is 600");
+    TEST_ASSERT(parseTimeToMinutes("12:00 PM") == 720, "parseTimeToMinutes('12:00 PM') is 720 (noon)");
+    TEST_ASSERT(parseTimeToMinutes("12:00 AM") == 0, "parseTimeToMinutes('12:00 AM') is 0 (midnight)");
+    TEST_ASSERT(parseTimeToMinutes("2:30 PM") == 870, "parseTimeToMinutes('2:30 PM') is 870");
+    TEST_ASSERT(parseTimeToMinutes("24:00") == -1, "parseTimeToMinutes('24:00') rejects hour 24");
+    TEST_ASSERT(parseTimeToMinutes("14:60") == -1, "parseTimeToMinutes('14:60') rejects minute 60");
+    TEST_ASSERT(parseTimeToMinutes("") == -1, "parseTimeToMinutes('') returns -1");
+    TEST_ASSERT(parseTimeToMinutes(NULL) == -1, "parseTimeToMinutes(NULL) returns -1");
+    TEST_ASSERT(parseTimeToMinutes("invalid") == -1, "parseTimeToMinutes('invalid') returns -1");
+
+    /* 2. Core time plausibility test cases from specification */
+    TEST_ASSERT(calculateTimeScore("14:00", "14:20") == 5, "14:00 lost / 14:20 found (diff 20m, 0-30m) is 5");
+    TEST_ASSERT(calculateTimeScore("14:00", "14:45") == 4, "14:00 lost / 14:45 found (diff 45m, 31-60m) is 4");
+    TEST_ASSERT(calculateTimeScore("14:00", "15:30") == 3, "14:00 lost / 15:30 found (diff 90m, 61-120m) is 3");
+    TEST_ASSERT(calculateTimeScore("14:00", "17:00") == 2, "14:00 lost / 17:00 found (diff 180m, 121-240m) is 2");
+    TEST_ASSERT(calculateTimeScore("14:00", "19:00") == 1, "14:00 lost / 19:00 found (diff 300m, >240m) is 1");
+    TEST_ASSERT(calculateTimeScore("14:00", "13:50") == 0, "14:00 lost / 13:50 found (found before lost) is 0");
+    TEST_ASSERT(calculateTimeScore("14:00", "invalid") == 0, "14:00 lost / invalid found returns 0");
+    TEST_ASSERT(calculateTimeScore("invalid", "14:00") == 0, "invalid lost / 14:00 found returns 0");
+    TEST_ASSERT(calculateTimeScore(NULL, "14:00") == 0, "NULL lost time returns 0");
+    TEST_ASSERT(calculateTimeScore("14:00", NULL) == 0, "NULL found time returns 0");
+
+    /* 3. Exact boundary condition testing */
+    TEST_ASSERT(calculateTimeScore("14:00", "14:00") == 5, "Boundary diff = 0 min is 5");
+    TEST_ASSERT(calculateTimeScore("14:00", "14:30") == 5, "Boundary diff = 30 min is 5");
+    TEST_ASSERT(calculateTimeScore("14:00", "14:31") == 4, "Boundary diff = 31 min is 4");
+    TEST_ASSERT(calculateTimeScore("14:00", "15:00") == 4, "Boundary diff = 60 min is 4");
+    TEST_ASSERT(calculateTimeScore("14:00", "15:01") == 3, "Boundary diff = 61 min is 3");
+    TEST_ASSERT(calculateTimeScore("14:00", "16:00") == 3, "Boundary diff = 120 min is 3");
+    TEST_ASSERT(calculateTimeScore("14:00", "16:01") == 2, "Boundary diff = 121 min is 2");
+    TEST_ASSERT(calculateTimeScore("14:00", "18:00") == 2, "Boundary diff = 240 min is 2");
+    TEST_ASSERT(calculateTimeScore("14:00", "18:01") == 1, "Boundary diff = 241 min is 1");
+    TEST_ASSERT(calculateTimeScore("14:00", "13:59") == 0, "Boundary diff = -1 min (found before lost) is 0");
+}
+
 int main(void) {
     printf("========================================\n");
     printf("       AssetTrace Test Runner\n");
@@ -408,6 +460,7 @@ int main(void) {
     test_storage_and_item_lookup();
     test_strict_integer_parsing();
     test_edge_cases();
+    test_time_plausibility();
 
     printf("\n========================================\n");
     printf("Test Results: %d Passed, %d Failed\n", g_testsPassed, g_testsFailed);

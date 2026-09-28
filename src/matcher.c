@@ -163,6 +163,108 @@ int calculateLocationScore(
 }
 
 /*
+    Parse a time string (e.g. "14:00", "2:00 PM", "10:30") into minutes from midnight (0 to 1439).
+    Returns -1 for invalid or unparseable time format.
+*/
+int parseTimeToMinutes(
+    const char *timeStr
+) {
+    if (timeStr == NULL || timeStr[0] == '\0') {
+        return -1;
+    }
+
+    int hours = -1;
+    int minutes = -1;
+    char period[10] = {0};
+
+    int parsed = sscanf(timeStr, " %d : %d %9s", &hours, &minutes, period);
+    if (parsed < 2) {
+        return -1;
+    }
+
+    if (minutes < 0 || minutes > 59) {
+        return -1;
+    }
+
+    if (parsed == 3) {
+        /* 12-hour format with AM/PM */
+        if (hours < 1 || hours > 12) {
+            return -1;
+        }
+
+        if (period[0] == 'a' || period[0] == 'A') {
+            if ((period[1] == 'm' || period[1] == 'M') && period[2] == '\0') {
+                if (hours == 12) {
+                    hours = 0;
+                }
+            } else {
+                return -1;
+            }
+        } else if (period[0] == 'p' || period[0] == 'P') {
+            if ((period[1] == 'm' || period[1] == 'M') && period[2] == '\0') {
+                if (hours != 12) {
+                    hours += 12;
+                }
+            } else {
+                return -1;
+            }
+        } else {
+            return -1;
+        }
+    } else {
+        /* 24-hour format (e.g. "14:00", "09:30") */
+        if (hours < 0 || hours > 23) {
+            return -1;
+        }
+    }
+
+    return hours * 60 + minutes;
+}
+
+/*
+    Calculate temporal plausibility score (0 to 5 points) assuming same operational day:
+    - Found before lost time -> 0 points
+    - Difference 0–30 minutes -> 5 points
+    - Difference 31–60 minutes -> 4 points
+    - Difference 61–120 minutes -> 3 points
+    - Difference 121–240 minutes -> 2 points
+    - Difference > 240 minutes -> 1 point
+    - Invalid or missing time -> 0 points
+*/
+int calculateTimeScore(
+    const char *lostTime,
+    const char *foundTime
+) {
+    if (lostTime == NULL || foundTime == NULL) {
+        return 0;
+    }
+
+    int lostMinutes = parseTimeToMinutes(lostTime);
+    int foundMinutes = parseTimeToMinutes(foundTime);
+
+    if (lostMinutes < 0 || foundMinutes < 0) {
+        return 0;
+    }
+
+    int diffMinutes = foundMinutes - lostMinutes;
+
+    if (diffMinutes < 0) {
+        /* Found before lost time on the same operational day is impossible */
+        return 0;
+    } else if (diffMinutes <= 30) {
+        return 5;
+    } else if (diffMinutes <= 60) {
+        return 4;
+    } else if (diffMinutes <= 120) {
+        return 3;
+    } else if (diffMinutes <= 240) {
+        return 2;
+    } else {
+        return 1;
+    }
+}
+
+/*
     Calculate final combined match score.
 */
 int calculateTotalMatchScore(
@@ -173,9 +275,10 @@ int calculateTotalMatchScore(
     int attributeScore = calculateAttributeScore(lost, found);
     int textScore = calculateTextSimilarity(lost.description, found.description);
     int locationScore = calculateLocationScore(campus, lost.location, found.location);
+    int timeScore = calculateTimeScore(lost.time, found.time);
 
     int baseScore = (attributeScore * 80 + textScore * 20) / 100;
-    int finalScore = baseScore + locationScore;
+    int finalScore = baseScore + locationScore + timeScore;
 
     if (finalScore > 100) {
         finalScore = 100;
