@@ -123,7 +123,13 @@ int calculateAttributeScore(
 }
 
 /*
-    Calculate location similarity score.
+    Calculate location similarity score based on Dijkstra shortest path distance:
+    - distance == 0: 10 points (same location)
+    - distance 1..3: 8 points
+    - distance 4..6: 6 points
+    - distance 7..9: 4 points
+    - distance >= 10 (reachable): 2 points
+    - unreachable / unknown location: 0 points
 */
 int calculateLocationScore(
     CampusGraph *campus,
@@ -142,8 +148,14 @@ int calculateLocationScore(
 
         if (distance == 0) {
             return 10;
+        } else if (distance >= 1 && distance <= 3) {
+            return 8;
+        } else if (distance >= 4 && distance <= 6) {
+            return 6;
+        } else if (distance >= 7 && distance <= 9) {
+            return 4;
         } else if (distance != INF) {
-            return 5;
+            return 2;
         }
     }
 

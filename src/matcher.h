@@ -26,7 +26,8 @@ int calculateAttributeScore(
 );
 
 /*
-    Calculate location similarity score (0, 5, or 10) using campus graph Dijkstra.
+    Calculate location similarity score (0 to 10) using campus graph Dijkstra distance:
+    distance 0 -> 10, 1-3 -> 8, 4-6 -> 6, 7-9 -> 4, 10+ -> 2, unreachable/unknown -> 0.
 */
 int calculateLocationScore(
     CampusGraph *campus,

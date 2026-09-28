@@ -153,6 +153,34 @@ void test_graph_and_dijkstra(void) {
     TEST_ASSERT(distInvalid == INF, "Dijkstra with negative source returns INF");
     distInvalid = dijkstra(&campus, 0, 99);
     TEST_ASSERT(distInvalid == INF, "Dijkstra with out-of-bounds destination returns INF");
+
+    /* Distance-based location scoring tests */
+    int scoreSame = calculateLocationScore(&campus, "Library", "Library");
+    TEST_ASSERT(scoreSame == 10, "Location score: same location (Library -> Library, dist 0) is 10");
+
+    int scoreDist3 = calculateLocationScore(&campus, "Library", "Block A");
+    TEST_ASSERT(scoreDist3 == 8, "Location score: Library -> Block A (dist 3, range 1-3) is 8");
+
+    int scoreDist6 = calculateLocationScore(&campus, "Library", "Canteen");
+    TEST_ASSERT(scoreDist6 == 6, "Location score: Library -> Canteen (dist 6, range 4-6) is 6");
+
+    int scoreDist8 = calculateLocationScore(&campus, "Block B", "Main Gate");
+    TEST_ASSERT(scoreDist8 == 4, "Location score: Block B -> Main Gate (dist 8, range 7-9) is 4");
+
+    int scoreDist11 = calculateLocationScore(&campus, "Library", "Main Gate");
+    TEST_ASSERT(scoreDist11 == 2, "Location score: Library -> Main Gate (dist 11, range 10+) is 2");
+
+    int scoreUnknownDest = calculateLocationScore(&campus, "Library", "Unknown Place");
+    TEST_ASSERT(scoreUnknownDest == 0, "Location score: unknown destination returns 0");
+
+    int scoreUnknownSrc = calculateLocationScore(&campus, "Unknown Place", "Library");
+    TEST_ASSERT(scoreUnknownSrc == 0, "Location score: unknown source returns 0");
+
+    int scoreNullGraph = calculateLocationScore(NULL, "Library", "Block A");
+    TEST_ASSERT(scoreNullGraph == 0, "Location score: NULL graph pointer returns 0");
+
+    int scoreNullLoc = calculateLocationScore(&campus, NULL, "Block A");
+    TEST_ASSERT(scoreNullLoc == 0, "Location score: NULL location name returns 0");
 }
 
 /*
@@ -263,13 +291,13 @@ void test_matching_engine(void) {
     int locScore101 = calculateLocationScore(&campus, query.location, items[0].location);
     TEST_ASSERT(locScore101 == 10, "Item 101 same-location score is 10");
     int locScore102 = calculateLocationScore(&campus, query.location, items[1].location);
-    TEST_ASSERT(locScore102 == 5, "Item 102 connected-location score is 5");
+    TEST_ASSERT(locScore102 == 6, "Item 102 connected-location score (Library->Canteen, dist 6) is 6");
 
     /* Total score */
     int total101 = calculateTotalMatchScore(query, items[0], &campus);
     TEST_ASSERT(total101 == 100, "Item 101 total score is capped at 100%");
     int total102 = calculateTotalMatchScore(query, items[1], &campus);
-    TEST_ASSERT(total102 == 41, "Item 102 total score is 41% ((45*80 + 0*20)/100 + 5)");
+    TEST_ASSERT(total102 == 42, "Item 102 total score is 42% ((45*80 + 0*20)/100 + 6)");
 
     /* Ranking test */
     MaxHeap heap;
@@ -278,7 +306,7 @@ void test_matching_engine(void) {
     MatchResult first = extractMax(&heap);
     TEST_ASSERT(first.itemId == 101 && first.score == 100, "Top ranked candidate is Item 101 (100%)");
     MatchResult second = extractMax(&heap);
-    TEST_ASSERT(second.itemId == 102 && second.score == 41, "Second ranked candidate is Item 102 (41%)");
+    TEST_ASSERT(second.itemId == 102 && second.score == 42, "Second ranked candidate is Item 102 (42%)");
 
     freeHashTable(&ht);
 }
